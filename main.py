@@ -1,11 +1,12 @@
-import tkinter as tk
+"""
+Titan Campus Algorithmic Assistant (TCAA)
+CPSC 335 – Algorithm Engineering | Final Project
 
-root = tk.Tk()
+Entry point — launches the application.
+"""
 
-root.title("My Tkinter Window")
-root.geometry("300x200"
-              )
-greet = tk.Label(root, text="Hello, Tkinter!")
-greet.pack(pady=20)
+from app import TCAApp
 
-root.mainloop()
+if __name__ == "__main__":
+    app = TCAApp()
+    app.mainloop()

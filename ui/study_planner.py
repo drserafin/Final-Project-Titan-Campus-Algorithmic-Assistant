@@ -1,0 +1,110 @@
+"""
+ui/study_planner.py — Study Planner module UI.
+Calculates study schedules based on available time and task priority.
+"""
+
+import tkinter as tk
+from tkinter import messagebox
+from ui.theme import (COLORS, FONT_BODY, FONT_SUBHEAD, FONT_SMALL,
+                      section_header, card, accent_button, ghost_button,
+                      output_box, write_output)
+
+class StudyPlannerFrame(tk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent, bg=COLORS["bg_dark"])
+        self._build()
+
+    def _build(self):
+        section_header(self, 
+                        "📅  Study Planner", 
+                        "Optimize your study sessions using Greedy Scheduling")
+
+        body = tk.Frame(self, bg=COLORS["bg_dark"])
+        body.pack(fill="both", expand=True, padx=24, pady=(0, 20))
+        body.columnconfigure(0, weight=0, minsize=300)
+        body.columnconfigure(1, weight=1)
+        body.rowconfigure(0, weight=1)
+
+        self._build_input_panel(body)
+        self._build_results_panel(body)
+
+    def _build_input_panel(self, parent):
+        pnl = card(parent)
+        pnl.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+
+        # Header
+        # FIXED: Moved pady to .pack()
+        tk.Label(pnl, text="Plan Details", font=FONT_SUBHEAD,
+                 fg=COLORS["accent"], bg=COLORS["bg_panel"],
+                 anchor="w", padx=12).pack(fill="x", pady=10)
+        
+        tk.Frame(pnl, bg=COLORS["border"], height=1).pack(fill="x", pady=(0, 10))
+
+        # Available Time Input
+        # FIXED LINE 72: Moved pady=(10, 2) from Label constructor to .pack()
+        tk.Label(pnl, text="Available Time (hrs)", font=FONT_BODY,
+                 fg=COLORS["text_secondary"], bg=COLORS["bg_panel"],
+                 anchor="w", padx=12).pack(fill="x", pady=(10, 2))
+
+        self._time_entry = tk.Entry(
+            pnl, font=FONT_BODY, bg=COLORS["bg_hover"], 
+            fg=COLORS["text_primary"], insertbackground=COLORS["accent"],
+            relief="flat", bd=4)
+        self._time_entry.pack(fill="x", padx=12, pady=(0, 15))
+
+        # Task Input Section
+        # FIXED: Moved pady to .pack()
+        tk.Label(pnl, text="Add Task", font=FONT_BODY,
+                 fg=COLORS["text_secondary"], bg=COLORS["bg_panel"],
+                 anchor="w", padx=12).pack(fill="x", pady=(5, 2))
+
+        self._task_name = tk.Entry(
+            pnl, font=FONT_BODY, bg=COLORS["bg_hover"], 
+            fg=COLORS["text_primary"], insertbackground=COLORS["accent"],
+            relief="flat", bd=4)
+        self._task_name.insert(0, "Task Name")
+        self._task_name.pack(fill="x", padx=12, pady=2)
+
+        # Buttons
+        accent_button(pnl, "➕  Add Task", command=self._add_task).pack(
+            fill="x", padx=12, pady=10)
+        
+        tk.Frame(pnl, bg=COLORS["border"], height=1).pack(fill="x", pady=10)
+
+        accent_button(pnl, "🚀  Generate Plan", command=self._generate_plan).pack(
+            fill="x", padx=12, pady=5)
+        
+        ghost_button(pnl, "✕  Clear All", command=self._clear).pack(
+            fill="x", padx=12, pady=5)
+
+    def _build_results_panel(self, parent):
+        right = tk.Frame(parent, bg=COLORS["bg_dark"])
+        right.grid(row=0, column=1, sticky="nsew")
+        right.rowconfigure(0, weight=1)
+        right.columnconfigure(0, weight=1)
+
+        res_card = card(right)
+        res_card.grid(row=0, column=0, sticky="nsew")
+        
+        # FIXED: Moved pady to .pack()
+        tk.Label(res_card, text="Optimized Schedule", font=FONT_SUBHEAD,
+                 fg=COLORS["accent"], bg=COLORS["bg_panel"],
+                 anchor="w", padx=12).pack(fill="x", pady=10)
+        
+        tk.Frame(res_card, bg=COLORS["border"], height=1).pack(fill="x")
+        
+        self._output = output_box(res_card, height=20)
+
+    def _add_task(self):
+        # Placeholder logic
+        pass
+
+    def _generate_plan(self):
+        if not self._time_entry.get():
+            messagebox.showwarning("Input Error", "Please enter available time.")
+            return
+        write_output(self._output, "Generating optimized study plan...\n[Logic goes here]")
+
+    def _clear(self):
+        self._time_entry.delete(0, tk.END)
+        write_output(self._output, "")
