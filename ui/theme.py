@@ -6,6 +6,20 @@ Do not scatter hex codes across files.
 """
 
 import tkinter as tk
+import sys
+
+# --- macOS Color Fix ---
+# Standard Tkinter buttons on Mac ignore background/foreground colors.
+# This safely uses tkmacosx to restore your colors.
+if sys.platform == "darwin":
+    try:
+        from tkmacosx import Button as CustomButton
+    except ImportError:
+        print("⚠️ WARNING: Please run 'pip install tkmacosx' in your terminal!")
+        CustomButton = tk.Button
+else:
+    CustomButton = tk.Button
+
 
 # -- Color Palette -----------------------------------------------------------
 COLORS = {
@@ -13,12 +27,12 @@ COLORS = {
     "bg_panel": "#101A3A",
     "bg_panel_alt": "#15104A",
     "bg_hover": "#1B2C65",
-    "accent": "#38BDF8",
+    "accent": "#38BDF8",            # Sky Blue (Active Tabs)
     "accent_dim": "#2563EB",
     "accent_2": "#A855F7",
     "accent_2_dim": "#6D28D9",
-    "text_primary": "#F8FAFC",
-    "text_secondary": "#C7D2FE",
+    "text_primary": "#FFFFFF",      # Pure White (Readability)
+    "text_secondary": "#C7D2FE",    # Soft Blue-White (Inactive Tabs)
     "text_muted": "#94A3B8",
     "border": "#5146A6",
     "nav_bg": "#061633",
@@ -142,7 +156,7 @@ def accent_button(parent: tk.Widget, text: str, command=None, **kwargs) -> tk.Bu
         command=command,
     )
     defaults.update(kwargs)
-    return tk.Button(parent, **defaults)
+    return CustomButton(parent, **defaults)
 
 
 def ghost_button(parent: tk.Widget, text: str, command=None, **kwargs) -> tk.Button:
@@ -162,7 +176,7 @@ def ghost_button(parent: tk.Widget, text: str, command=None, **kwargs) -> tk.But
         command=command,
     )
     defaults.update(kwargs)
-    return tk.Button(parent, **defaults)
+    return CustomButton(parent, **defaults)
 
 
 def labeled_entry(parent: tk.Widget, label: str, width: int = 20) -> tuple[tk.Frame, tk.Entry]:

@@ -4,7 +4,8 @@ app.py - TCAApp window + top navbar routing.
 
 import tkinter as tk
 
-from ui.theme import COLORS, FONT_LOGO, FONT_NAV, gradient_bar
+# Imported CustomButton here
+from ui.theme import COLORS, FONT_LOGO, FONT_NAV, gradient_bar, CustomButton
 from ui.campus_navigator import CampusNavigatorFrame
 from ui.study_planner import StudyPlannerFrame
 from ui.notes_search import NotesSearchFrame
@@ -64,7 +65,8 @@ class TCAApp(tk.Tk):
         btn_area.pack(side="left", padx=8, fill="y")
 
         for idx, (label, _) in enumerate(self.MODULES):
-            btn = tk.Button(
+            # Used CustomButton instead of tk.Button
+            btn = CustomButton(
                 btn_area,
                 text=label,
                 font=FONT_NAV,
