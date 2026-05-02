@@ -1,261 +1,308 @@
 """
-algorithms/graph.py — Graph algorithm implementations.
+algorithms/graph.py - Graph algorithm implementations.
 
-All functions operate on a plain adjacency list (dict of lists/dicts).
-Zero GUI / tkinter imports — pure Python only.
+Campus graph rules:
+- Nodes are CSUF campus map locations.
+- Edges are walkable paths between nearby locations.
+- distance is a normalized map-based weight, not real-world feet.
+  1-3  = very close
+  4-7  = medium
+  8-12 = far
+- time is derived from distance so it stays consistent with the weight.
 
-Graph format expected:
-  Unweighted: { "NodeA": ["NodeB", "NodeC"], ... }
-  Weighted:   { "NodeA": {"NodeB": 5, "NodeC": 2}, ... }
+This module has no GUI or tkinter imports.
 """
 
 import heapq
 from collections import deque
 
 
-# ── Graph definition ─────────────────────────────────────────────────────────
-# Real CSUF campus buildings derived from the official campus map.
-# Edge weights = approximate walking time in minutes between buildings.
-# Graph is undirected — edges are mirrored in both directions.
+VERY_CLOSE = range(1, 4)
+MEDIUM = range(4, 8)
+FAR = range(8, 13)
 
-CAMPUS_GRAPH: dict[str, dict[str, int]] = {
-    # Core academic spine
-    "Pollak Library (PL)": {
-        "Titan Student Union (TSU)": 3,
-        "Dan Black Hall (DBH)":      4,
-        "Education-Classroom (EC)":  3,
-        "Humanities (H)":            4,
-        "Commons":                   2,
-    },
-    "Titan Student Union (TSU)": {
-        "Pollak Library (PL)":           3,
-        "Bookstore / Titan Shops (B)":   2,
-        "Student Rec Center (SRC)":      4,
-        "Visual Arts (VA)":              5,
-        "Commons":                       3,
-    },
-    "Dan Black Hall (DBH)": {
-        "Pollak Library (PL)":           4,
-        "Mihaylo Hall (MH)":             2,
-        "Langsdorf Hall (LH)":           3,
-        "Education-Classroom (EC)":      4,
-    },
-    "Engineering (E)": {
-        "Computer Science (CS)":         2,
-        "Eng & CS Complex (ECS)":        2,
-        "Kinesiology & Health (KHS)":    4,
-        "Student Health (SHCC)":         3,
-    },
-    "Computer Science (CS)": {
-        "Engineering (E)":               2,
-        "Eng & CS Complex (ECS)":        1,
-        "Student Health (SHCC)":         3,
-    },
-    "Eng & CS Complex (ECS)": {
-        "Engineering (E)":               2,
-        "Computer Science (CS)":         1,
-        "Kinesiology & Health (KHS)":    3,
-    },
-    "Humanities (H)": {
-        "Pollak Library (PL)":           4,
-        "Quad":                          2,
-        "Education-Classroom (EC)":      3,
-        "Clayes Performing Arts (CPAC)": 3,
-    },
-    "Kinesiology & Health (KHS)": {
-        "Engineering (E)":               4,
-        "Eng & CS Complex (ECS)":        3,
-        "Titan Gymnasium (TG)":          2,
-        "Student Rec Center (SRC)":      3,
-        "Student Health (SHCC)":         2,
-    },
-    "Student Rec Center (SRC)": {
-        "Titan Student Union (TSU)":     4,
-        "Kinesiology & Health (KHS)":    3,
-        "State College Parking (SCPS)":  2,
-        "Titan Gymnasium (TG)":          2,
-    },
-    "Titan Gymnasium (TG)": {
-        "Student Rec Center (SRC)":      2,
-        "Kinesiology & Health (KHS)":    2,
-        "Titan House (TH)":              3,
-    },
-    "Langsdorf Hall (LH)": {
-        "Dan Black Hall (DBH)":          3,
-        "Mihaylo Hall (MH)":             2,
-        "Sgmh (SGMH)":                   2,
-        "University Hall (UH)":          3,
-    },
-    "Mihaylo Hall (MH)": {
-        "Dan Black Hall (DBH)":          2,
-        "Langsdorf Hall (LH)":           2,
-        "Sgmh (SGMH)":                   3,
-        "Bookstore / Titan Shops (B)":   4,
-    },
-    "Sgmh (SGMH)": {
-        "Langsdorf Hall (LH)":           2,
-        "Mihaylo Hall (MH)":             3,
-        "University Hall (UH)":          2,
-    },
-    "University Hall (UH)": {
-        "Langsdorf Hall (LH)":           3,
-        "Sgmh (SGMH)":                   2,
-        "Carl's Jr. (CJ)":               2,
-    },
-    "Education-Classroom (EC)": {
-        "Pollak Library (PL)":           3,
-        "Dan Black Hall (DBH)":          4,
-        "Humanities (H)":                3,
-        "Quad":                          2,
-    },
-    "Quad": {
-        "Humanities (H)":                2,
-        "Education-Classroom (EC)":      2,
-        "Clayes Performing Arts (CPAC)": 2,
-        "Ruby Gerontology (RGC)":        4,
-    },
-    "Clayes Performing Arts (CPAC)": {
-        "Humanities (H)":                3,
-        "Quad":                          2,
-        "Visual Arts (VA)":              3,
-        "Mihaylo Hall (MH)":             4,
-    },
-    "Visual Arts (VA)": {
-        "Titan Student Union (TSU)":     5,
-        "Clayes Performing Arts (CPAC)": 3,
-        "Bookstore / Titan Shops (B)":   3,
-    },
-    "Bookstore / Titan Shops (B)": {
-        "Titan Student Union (TSU)":     2,
-        "Visual Arts (VA)":              3,
-        "Mihaylo Hall (MH)":             4,
-        "Commons":                       3,
-    },
-    "Commons": {
-        "Pollak Library (PL)":           2,
-        "Titan Student Union (TSU)":     3,
-        "Bookstore / Titan Shops (B)":   3,
-    },
-    "Student Health (SHCC)": {
-        "Engineering (E)":               3,
-        "Computer Science (CS)":         3,
-        "Kinesiology & Health (KHS)":    2,
-        "Ruby Gerontology (RGC)":        3,
-    },
-    "Ruby Gerontology (RGC)": {
-        "Student Health (SHCC)":         3,
-        "Quad":                          4,
-        "Titan House (TH)":              4,
-    },
-    "Titan House (TH)": {
-        "Titan Gymnasium (TG)":          3,
-        "Ruby Gerontology (RGC)":        4,
-        "Residence Halls (RH)":          3,
-    },
-    "Residence Halls (RH)": {
-        "Titan House (TH)":              3,
-        "Student Health (SHCC)":         5,
-    },
-    "State College Parking (SCPS)": {
-        "Student Rec Center (SRC)":      2,
-        "University Police (UP)":        2,
-    },
-    "University Police (UP)": {
-        "State College Parking (SCPS)":  2,
-        "Student Rec Center (SRC)":      3,
-    },
-    "Carl's Jr. (CJ)": {
-        "University Hall (UH)":          2,
-        "Sgmh (SGMH)":                   3,
-    },
-    "Becker Amphitheater (BA)": {
-        "Titan Student Union (TSU)":     3,
-        "Visual Arts (VA)":              2,
-    },
-    "Eastside Parking (EPS)": {
-        "Quad":                          4,
-        "Clayes Performing Arts (CPAC)": 4,
-        "Ruby Gerontology (RGC)":        3,
-    },
+
+def _time_from_distance(distance: int) -> int:
+    """Convert normalized distance units into a simple walking-time estimate."""
+    return max(1, (distance + 1) // 2)
+
+
+def _edge(distance: int, accessible: bool = True) -> dict[str, int | bool]:
+    if distance < 1 or distance > 12:
+        raise ValueError(f"distance must be between 1 and 12, got {distance}")
+
+    return {
+        "distance": distance,
+        "time": _time_from_distance(distance),
+        "accessible": accessible,
+    }
+
+
+def _add_edge(
+    graph: dict[str, dict[str, dict[str, int | bool]]],
+    a: str,
+    b: str,
+    distance: int,
+    accessible: bool = True,
+):
+    """Add an undirected weighted edge."""
+    graph[a][b] = _edge(distance, accessible)
+    graph[b][a] = _edge(distance, accessible)
+
+
+BUILDING_NAMES = [
+    "Bookstore/Titan Shops (B)",
+    "Carl's Jr (CJ)",
+    "Children's Center (CC)",
+    "Clayes Performing Arts Center (CPAC)",
+    "College Park (CP)",
+    "Computer Science (CS)",
+    "Dan Black Hall (DBH)",
+    "Eastside Parking Structure (EPS)",
+    "Education-Classroom (EC)",
+    "Engineering Building (E)",
+    "Goodwin Field (GF)",
+    "Greenhouse Complex (BGC)",
+    "Humanities-Social Sciences (HSS)",
+    "Kinesiology & Health (KHS)",
+    "Langsdorf Hall (LH)",
+    "McCarthy Hall (MH)",
+    "Mihaylo Hall (SGMH)",
+    "Nutwood Parking Structure (NPS)",
+    "Parking & Transportation Services (P)",
+    "Pollak Library (PL)",
+    "Receiving (R)",
+    "Residence Halls (RH)",
+    "Ruby Gerontology Center (RGC)",
+    "State College Parking Structure (SCPS)",
+    "Student Health and Counseling Center (SHCC)",
+    "Student Housing (SH)",
+    "Student Rec Center (SRC)",
+    "Titan House (TH)",
+    "Titan Stadium (TS)",
+    "Titan Student Union (TSU)",
+    "University Hall (UH)",
+    "University Police (UP)",
+    "Visual Arts (VA)",
+]
+
+
+CAMPUS_GRAPH: dict[str, dict[str, dict[str, int | bool]]] = {
+    building: {} for building in BUILDING_NAMES
 }
 
-# Flat list of all building names (for dropdowns)
+
+# North / athletic area
+_add_edge(CAMPUS_GRAPH, "Goodwin Field (GF)", "Titan Stadium (TS)", 2)
+_add_edge(CAMPUS_GRAPH, "Goodwin Field (GF)", "Children's Center (CC)", 4)
+_add_edge(CAMPUS_GRAPH, "Goodwin Field (GF)", "Titan House (TH)", 5)
+_add_edge(CAMPUS_GRAPH, "Goodwin Field (GF)", "Residence Halls (RH)", 6)
+_add_edge(CAMPUS_GRAPH, "Titan Stadium (TS)", "Children's Center (CC)", 4)
+_add_edge(CAMPUS_GRAPH, "Titan Stadium (TS)", "Titan House (TH)", 7)
+_add_edge(CAMPUS_GRAPH, "Titan House (TH)", "Residence Halls (RH)", 5)
+
+# East side / engineering corridor
+_add_edge(CAMPUS_GRAPH, "Residence Halls (RH)", "Student Housing (SH)", 4)
+_add_edge(CAMPUS_GRAPH, "Residence Halls (RH)", "Eastside Parking Structure (EPS)", 6)
+_add_edge(CAMPUS_GRAPH, "Student Housing (SH)", "Ruby Gerontology Center (RGC)", 2)
+_add_edge(CAMPUS_GRAPH, "Student Housing (SH)", "Student Health and Counseling Center (SHCC)", 3)
+_add_edge(CAMPUS_GRAPH, "Student Housing (SH)", "Eastside Parking Structure (EPS)", 5)
+_add_edge(CAMPUS_GRAPH, "Ruby Gerontology Center (RGC)", "Student Health and Counseling Center (SHCC)", 2)
+_add_edge(CAMPUS_GRAPH, "Ruby Gerontology Center (RGC)", "Engineering Building (E)", 3)
+_add_edge(CAMPUS_GRAPH, "Ruby Gerontology Center (RGC)", "Computer Science (CS)", 3)
+_add_edge(CAMPUS_GRAPH, "Ruby Gerontology Center (RGC)", "Eastside Parking Structure (EPS)", 4)
+_add_edge(CAMPUS_GRAPH, "Student Health and Counseling Center (SHCC)", "Engineering Building (E)", 3)
+_add_edge(CAMPUS_GRAPH, "Student Health and Counseling Center (SHCC)", "Computer Science (CS)", 4)
+_add_edge(CAMPUS_GRAPH, "Student Health and Counseling Center (SHCC)", "Kinesiology & Health (KHS)", 3)
+_add_edge(CAMPUS_GRAPH, "Engineering Building (E)", "Computer Science (CS)", 1)
+_add_edge(CAMPUS_GRAPH, "Engineering Building (E)", "Education-Classroom (EC)", 4)
+_add_edge(CAMPUS_GRAPH, "Engineering Building (E)", "Eastside Parking Structure (EPS)", 5)
+_add_edge(CAMPUS_GRAPH, "Computer Science (CS)", "Education-Classroom (EC)", 3)
+_add_edge(CAMPUS_GRAPH, "Computer Science (CS)", "Eastside Parking Structure (EPS)", 4)
+
+# Central academic core
+_add_edge(CAMPUS_GRAPH, "Education-Classroom (EC)", "Pollak Library (PL)", 3)
+_add_edge(CAMPUS_GRAPH, "Education-Classroom (EC)", "Humanities-Social Sciences (HSS)", 3)
+_add_edge(CAMPUS_GRAPH, "Education-Classroom (EC)", "University Hall (UH)", 5)
+_add_edge(CAMPUS_GRAPH, "Education-Classroom (EC)", "Mihaylo Hall (SGMH)", 7)
+_add_edge(CAMPUS_GRAPH, "Pollak Library (PL)", "Humanities-Social Sciences (HSS)", 2)
+_add_edge(CAMPUS_GRAPH, "Pollak Library (PL)", "Bookstore/Titan Shops (B)", 2)
+_add_edge(CAMPUS_GRAPH, "Pollak Library (PL)", "Titan Student Union (TSU)", 4)
+_add_edge(CAMPUS_GRAPH, "Pollak Library (PL)", "Clayes Performing Arts Center (CPAC)", 5)
+_add_edge(CAMPUS_GRAPH, "Humanities-Social Sciences (HSS)", "University Hall (UH)", 1)
+_add_edge(CAMPUS_GRAPH, "Humanities-Social Sciences (HSS)", "Kinesiology & Health (KHS)", 5)
+_add_edge(CAMPUS_GRAPH, "University Hall (UH)", "McCarthy Hall (MH)", 2)
+_add_edge(CAMPUS_GRAPH, "University Hall (UH)", "Dan Black Hall (DBH)", 2)
+_add_edge(CAMPUS_GRAPH, "University Hall (UH)", "Carl's Jr (CJ)", 2)
+_add_edge(CAMPUS_GRAPH, "Carl's Jr (CJ)", "Langsdorf Hall (LH)", 2)
+_add_edge(CAMPUS_GRAPH, "Carl's Jr (CJ)", "Mihaylo Hall (SGMH)", 3)
+
+# West side / student-life area
+_add_edge(CAMPUS_GRAPH, "Titan Student Union (TSU)", "Bookstore/Titan Shops (B)", 1)
+_add_edge(CAMPUS_GRAPH, "Titan Student Union (TSU)", "Student Rec Center (SRC)", 5)
+_add_edge(CAMPUS_GRAPH, "Titan Student Union (TSU)", "Visual Arts (VA)", 3)
+_add_edge(CAMPUS_GRAPH, "Titan Student Union (TSU)", "Clayes Performing Arts Center (CPAC)", 5)
+_add_edge(CAMPUS_GRAPH, "Titan Student Union (TSU)", "University Police (UP)", 5)
+_add_edge(CAMPUS_GRAPH, "Bookstore/Titan Shops (B)", "Student Rec Center (SRC)", 3)
+_add_edge(CAMPUS_GRAPH, "Student Rec Center (SRC)", "Kinesiology & Health (KHS)", 3)
+_add_edge(CAMPUS_GRAPH, "Student Rec Center (SRC)", "Receiving (R)", 3)
+_add_edge(CAMPUS_GRAPH, "Student Rec Center (SRC)", "State College Parking Structure (SCPS)", 4)
+_add_edge(CAMPUS_GRAPH, "Student Rec Center (SRC)", "Children's Center (CC)", 5)
+_add_edge(CAMPUS_GRAPH, "State College Parking Structure (SCPS)", "University Police (UP)", 2)
+_add_edge(CAMPUS_GRAPH, "State College Parking Structure (SCPS)", "Receiving (R)", 2)
+_add_edge(CAMPUS_GRAPH, "State College Parking Structure (SCPS)", "Parking & Transportation Services (P)", 4)
+_add_edge(CAMPUS_GRAPH, "University Police (UP)", "Receiving (R)", 3)
+_add_edge(CAMPUS_GRAPH, "University Police (UP)", "Visual Arts (VA)", 6)
+_add_edge(CAMPUS_GRAPH, "University Police (UP)", "Parking & Transportation Services (P)", 5)
+_add_edge(CAMPUS_GRAPH, "Receiving (R)", "Visual Arts (VA)", 4)
+_add_edge(CAMPUS_GRAPH, "Receiving (R)", "Parking & Transportation Services (P)", 4)
+_add_edge(CAMPUS_GRAPH, "Children's Center (CC)", "Parking & Transportation Services (P)", 4)
+_add_edge(CAMPUS_GRAPH, "Children's Center (CC)", "State College Parking Structure (SCPS)", 4)
+
+# South campus
+_add_edge(CAMPUS_GRAPH, "Visual Arts (VA)", "Clayes Performing Arts Center (CPAC)", 3)
+_add_edge(CAMPUS_GRAPH, "Visual Arts (VA)", "Nutwood Parking Structure (NPS)", 4)
+_add_edge(CAMPUS_GRAPH, "Clayes Performing Arts Center (CPAC)", "Greenhouse Complex (BGC)", 2)
+_add_edge(CAMPUS_GRAPH, "Clayes Performing Arts Center (CPAC)", "McCarthy Hall (MH)", 4)
+_add_edge(CAMPUS_GRAPH, "Clayes Performing Arts Center (CPAC)", "Nutwood Parking Structure (NPS)", 5)
+_add_edge(CAMPUS_GRAPH, "Nutwood Parking Structure (NPS)", "Greenhouse Complex (BGC)", 3)
+_add_edge(CAMPUS_GRAPH, "Greenhouse Complex (BGC)", "McCarthy Hall (MH)", 2)
+_add_edge(CAMPUS_GRAPH, "Greenhouse Complex (BGC)", "Dan Black Hall (DBH)", 2)
+_add_edge(CAMPUS_GRAPH, "McCarthy Hall (MH)", "Dan Black Hall (DBH)", 1)
+_add_edge(CAMPUS_GRAPH, "McCarthy Hall (MH)", "Langsdorf Hall (LH)", 4)
+_add_edge(CAMPUS_GRAPH, "McCarthy Hall (MH)", "Carl's Jr (CJ)", 2)
+_add_edge(CAMPUS_GRAPH, "Dan Black Hall (DBH)", "Langsdorf Hall (LH)", 3)
+_add_edge(CAMPUS_GRAPH, "Langsdorf Hall (LH)", "Mihaylo Hall (SGMH)", 2)
+_add_edge(CAMPUS_GRAPH, "Langsdorf Hall (LH)", "College Park (CP)", 5)
+_add_edge(CAMPUS_GRAPH, "Mihaylo Hall (SGMH)", "College Park (CP)", 3)
+_add_edge(CAMPUS_GRAPH, "Mihaylo Hall (SGMH)", "Eastside Parking Structure (EPS)", 6)
+
+
 BUILDINGS: list[str] = sorted(CAMPUS_GRAPH.keys())
 
 
-# ── BFS ──────────────────────────────────────────────────────────────────────
-
-def bfs(graph: dict, start: str, end: str) -> dict:
+def dijkstra(graph, start, end):
     """
-    Breadth-First Search — finds the path with the fewest hops.
-
-    Returns:
-        {
-          "path":    list[str] | None,
-          "hops":    int,
-          "visited": list[str],   # BFS visit order
-        }
-
-    Time:  O(V + E)
-    Space: O(V)
+    Heap-based Dijkstra's shortest path algorithm.
+    Optimizes for distance.
+    Returns: (total_distance, total_time, path_list) or (inf, inf, None).
     """
-    # TODO: implement BFS
-    raise NotImplementedError("BFS not yet implemented — see algorithms/graph.py")
+    if not graph:
+        return float("inf"), float("inf"), None
+
+    pq = [(0, 0, start, [start])]
+    visited = set()
+
+    while pq:
+        dist, time, current, path = heapq.heappop(pq)
+
+        if current in visited:
+            continue
+        visited.add(current)
+
+        if current == end:
+            return dist, time, path
+
+        if current in graph:
+            for neighbor, attrs in graph[current].items():
+                if neighbor not in visited:
+                    edge_dist = attrs["distance"]
+                    edge_time = attrs["time"]
+                    heapq.heappush(pq, (dist + edge_dist, time + edge_time, neighbor, path + [neighbor]))
+
+    return float("inf"), float("inf"), None
 
 
-# ── DFS ──────────────────────────────────────────────────────────────────────
-
-def dfs(graph: dict, start: str) -> dict:
+def bfs(graph, start, end):
     """
-    Depth-First Search — full traversal from start node.
-
-    Returns:
-        {
-          "order":      list[str],   # DFS visit order
-          "components": int,         # connected component count
-        }
-
-    Time:  O(V + E)
-    Space: O(V)
+    Breadth-first search path with the fewest hops.
+    Calculates total distance and time after finding the path.
+    Returns: (hops, total_distance, total_time, path_list) or (inf, inf, inf, None).
     """
-    # TODO: implement DFS
-    raise NotImplementedError("DFS not yet implemented — see algorithms/graph.py")
+    if not graph:
+        return float("inf"), float("inf"), float("inf"), None
+
+    queue = deque([(start, [start])])
+    visited = set()
+
+    while queue:
+        current, path = queue.popleft()
+
+        if current == end:
+            total_dist = sum(graph[path[i]][path[i + 1]]["distance"] for i in range(len(path) - 1))
+            total_time = sum(graph[path[i]][path[i + 1]]["time"] for i in range(len(path) - 1))
+            return len(path) - 1, total_dist, total_time, path
+
+        if current not in visited:
+            visited.add(current)
+            if current in graph:
+                for neighbor in graph[current]:
+                    if neighbor not in visited:
+                        queue.append((neighbor, path + [neighbor]))
+
+    return float("inf"), float("inf"), float("inf"), None
 
 
-# ── Dijkstra ─────────────────────────────────────────────────────────────────
-
-def dijkstra(graph: dict, start: str, end: str) -> dict:
+def dfs(graph, start):
     """
-    Dijkstra's shortest path algorithm (min-heap based).
-
-    Returns:
-        {
-          "path":      list[str] | None,
-          "distance":  int | float,
-          "all_dists": dict[str, int|float],
-        }
-
-    Time:  O((V + E) log V)
-    Space: O(V)
+    Depth-first search full traversal from a start node.
+    Returns: visit_order, is_connected, status_string.
     """
-    # TODO: implement Dijkstra using heapq
-    raise NotImplementedError("Dijkstra not yet implemented — see algorithms/graph.py")
+    if not graph:
+        return [], False, "Graph is empty"
+
+    visited_order = []
+    stack = [start]
+    seen = set()
+
+    while stack:
+        current = stack.pop()
+
+        if current not in seen:
+            seen.add(current)
+            visited_order.append(current)
+            if current in graph:
+                for neighbor in sorted(graph[current], reverse=True):
+                    if neighbor not in seen:
+                        stack.append(neighbor)
+
+    is_connected = len(seen) == len(graph)
+    status_str = f"Graph {'is' if is_connected else 'is NOT'} fully connected."
+    return visited_order, is_connected, status_str
 
 
-# ── Prim's MST ───────────────────────────────────────────────────────────────
-
-def prims_mst(graph: dict) -> dict:
+def prims_mst(graph):
     """
-    Prim's Minimum Spanning Tree algorithm (min-heap based).
-
-    Returns:
-        {
-          "edges":       list[tuple[str, str, int]],  # (u, v, weight)
-          "total_weight": int,
-        }
-
-    Time:  O((V + E) log V)
-    Space: O(V)
+    Heap-based Prim's minimum spanning tree algorithm.
+    Optimizes for distance.
+    Returns: list of (u, v, distance), total_distance, total_time.
     """
-    # TODO: implement Prim's MST using heapq
-    raise NotImplementedError("Prim's MST not yet implemented — see algorithms/graph.py")
+    if not graph:
+        return [], 0, 0
+
+    start_node = next(iter(graph))
+    pq = []
+
+    for neighbor, attrs in graph[start_node].items():
+        heapq.heappush(pq, (attrs["distance"], attrs["time"], start_node, neighbor))
+
+    mst_edges = []
+    visited = {start_node}
+    total_dist = 0
+    total_time = 0
+
+    while pq and len(visited) < len(graph):
+        edge_dist, edge_time, u, v = heapq.heappop(pq)
+
+        if v not in visited:
+            visited.add(v)
+            mst_edges.append((u, v, edge_dist))
+            total_dist += edge_dist
+            total_time += edge_time
+
+            if v in graph:
+                for next_neighbor, attrs in graph[v].items():
+                    if next_neighbor not in visited:
+                        heapq.heappush(pq, (attrs["distance"], attrs["time"], v, next_neighbor))
+
+    return mst_edges, total_dist, total_time
