@@ -2,10 +2,16 @@
 app.py - TCAApp window + top navbar routing.
 """
 
+import sys
 import tkinter as tk
 
-# Imported CustomButton here
-from ui.theme import COLORS, FONT_LOGO, FONT_NAV, gradient_bar, CustomButton
+# Conditionally import the Mac-safe button
+if sys.platform == "darwin":
+    from tkmacosx import Button as CustomButton
+else:
+    from tkinter import Button as CustomButton
+
+from ui.theme import COLORS, FONT_LOGO, FONT_NAV, gradient_bar
 from ui.campus_navigator import CampusNavigatorFrame
 from ui.study_planner import StudyPlannerFrame
 from ui.notes_search import NotesSearchFrame
@@ -29,7 +35,7 @@ class TCAApp(tk.Tk):
         self.resizable(True, True)
 
         self._active_idx = tk.IntVar(value=0)
-        self._nav_buttons: list[tk.Button] = []
+        self._nav_buttons: list[CustomButton] = []
         self._frames: dict[int, tk.Frame] = {}
 
         self._build_navbar()
@@ -65,7 +71,7 @@ class TCAApp(tk.Tk):
         btn_area.pack(side="left", padx=8, fill="y")
 
         for idx, (label, _) in enumerate(self.MODULES):
-            # Used CustomButton instead of tk.Button
+            # Now using the platform-aware CustomButton
             btn = CustomButton(
                 btn_area,
                 text=label,
@@ -96,7 +102,7 @@ class TCAApp(tk.Tk):
 
         gradient_bar(self, height=3)
 
-    def _on_hover(self, btn: tk.Button, idx: int, entering: bool):
+    def _on_hover(self, btn: CustomButton, idx: int, entering: bool):
         if idx == self._active_idx.get():
             return
         btn.configure(
