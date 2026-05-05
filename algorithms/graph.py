@@ -60,6 +60,7 @@ BUILDING_COORDS: dict[str, tuple[int, int]] = {
     "University Hall (UH)":                        (317, 605),
     "University Police (UP)":                      (79,  423),
     "Visual Arts (VA)":                            (130, 539),
+    "Tenis Courts (TC)":                             (262,  352),
 }
 
 # Short abbreviation shown on the Graph View canvas.
@@ -193,7 +194,8 @@ _add_edge(CAMPUS_GRAPH, "Langsdorf Hall (LH)",                   "Mihaylo Hall (
 _add_edge(CAMPUS_GRAPH, "Langsdorf Hall (LH)",                   "College Park (CP)",                    5)
 _add_edge(CAMPUS_GRAPH, "Mihaylo Hall (SGMH)",                   "College Park (CP)",                    3)
 _add_edge(CAMPUS_GRAPH, "Mihaylo Hall (SGMH)",                   "Eastside Parking Structure (EPS)",     6)
-
+_add_edge(CAMPUS_GRAPH, "Titan House (TH)",                      "Tenis Courts (TC)",                    2)
+_add_edge(CAMPUS_GRAPH, "Tenis Courts (TC)",                    "Kinesiology & Health (KHS)",                  2)
 
 BUILDINGS: list[str] = sorted(CAMPUS_GRAPH.keys())
 
